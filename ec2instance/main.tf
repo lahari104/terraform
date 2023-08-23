@@ -84,7 +84,7 @@ resource "aws_instance" "Raju" {
   associate_public_ip_address = true
   availability_zone           = "us-east-1a"
   instance_type               = "t2.micro"
-  key_name                    = "lorry"
+  key_name                    = "Lahari"
   security_groups             = [aws_security_group.tf_security.id]
   subnet_id                   = aws_subnet.tf_subnet.id
   tags = {
