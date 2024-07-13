@@ -153,7 +153,7 @@ resource "aws_instance" "pub_inst_tf" {
   availability_zone           = "us-east-1a"
   instance_type               = "t2.micro"
   associate_public_ip_address = true
-  key_name                    = "office-mac"
+  key_name                    = "Lahari"
   security_groups             = [aws_security_group.security_tf.id]
   subnet_id                   = aws_subnet.pub_sub_tf.id
   tags = {
@@ -168,7 +168,7 @@ resource "aws_instance" "pvt_inst_tf" {
   availability_zone           = "us-east-1b"
   instance_type               = "t2.micro"
   associate_public_ip_address = true
-  key_name                    = "office-mac"
+  key_name                    = "Lahari"
   security_groups             = [aws_security_group.security_tf.id]
   subnet_id                   = aws_subnet.pvt_sub_tf.id
   tags = {
@@ -180,7 +180,7 @@ resource "aws_instance" "pvt_inst_tf" {
 
 resource "null_resource" "pub_tf" {
   triggers = {
-    "Name" = "1.0"
+    "Name" = "1.1"
   }
   connection {
     type        = "ssh"
@@ -216,7 +216,7 @@ resource "null_resource" "pub_tf" {
 
 resource "null_resource" "pvt_tf" {
   triggers = {
-    "Name" = "1.0"
+    "Name" = "1.1"
   }
   connection {
     type                = "ssh"
@@ -247,9 +247,10 @@ resource "null_resource" "pvt_tf" {
       "sudo systemctl restart apache2"
     ]
   }
-  depends_on = [aws_instance.pub_inst_tf, aws_instance.pvt_inst_tf]
-}
 
+  depends_on = [aws_instance.pub_inst_tf, aws_instance.pvt_inst_tf]
+
+}
 
 data "aws_elb_service_account" "main" {
   depends_on = [null_resource.pvt_tf]
@@ -257,8 +258,10 @@ data "aws_elb_service_account" "main" {
 
 resource "aws_s3_bucket" "aws_bucket" {
   bucket     = "access-logs-insignia"
+  force_destroy = true
   depends_on = [null_resource.pvt_tf]
 }
+
 
 resource "aws_s3_bucket_ownership_controls" "s3_bucket_acl_ownership" {
   bucket = aws_s3_bucket.aws_bucket.id
@@ -295,7 +298,6 @@ resource "aws_s3_bucket_policy" "allow_elb_logging" {
   depends_on = [data.aws_iam_policy_document.allow_elb_logging]
 }
 
-
 resource "aws_lb_target_group" "target_alb_tf" {
   name        = "target-grp-lb"
   port        = 80
@@ -327,7 +329,177 @@ resource "aws_lb" "load_tf" {
   }
   depends_on = [aws_lb_target_group.target_alb_tf]
 
+
 }
+
+# resource "aws_s3_bucket" "s3_tf" {
+#   bucket = "bucket-load-balancer-logs"
+#   tags = {
+#     "Name" = "lb-logs"
+#   }
+#   depends_on = [ null_resource.pvt_tf ]
+# }
+
+
+# resource "aws_s3_bucket_policy" "alb_logs_policy" {
+#   bucket = aws_s3_bucket.s3_tf.id
+
+#   policy = jsonencode({
+#     "Version": "2012-10-17",
+#     "Statement": [
+#       {
+#         "Effect": "Allow",
+#         "Principal": {
+#           "Service": "logdelivery.elasticloadbalancing.amazonaws.com"
+#         },
+#         "Action": "s3:PutObject",
+#         "Resource": ""
+#       }
+#     ]
+#   })
+#   depends_on = [ aws_s3_bucket.s3_tf ]
+# }
+
+# Create S3 Bucket for ALB Logs
+# resource "aws_s3_bucket" "bucket_tf" {
+#   bucket = "bucket-load-balancer-logs"
+#   # aws_s3_bucket_acl    = "private"
+
+
+#   tags = {
+#     Name = "my-alb-logs-bucket"
+#   }
+#   depends_on = [ null_resource.pvt_tf ]
+# }
+
+# data "aws_elb_service_account" "elb_acc" {
+#   depends_on = [ aws_s3_bucket.bucket_tf ]
+  
+# }
+
+# resource "aws_iam_role" "alb_role" {
+#   name = "alb-logs-role"
+#   assume_role_policy = jsonencode({
+#     Version = "2012-10-17",
+#     Statement = [
+#       {
+#         Effect = "Allow",
+#         Principal = {
+#           Service = "ec2.amazonaws.com"
+#         },
+#         Action = "sts:AssumeRole"
+#       }
+#     ]
+#   })
+# }
+
+# resource "aws_iam_policy" "alb_s3_policy" {
+#   name        = "ALBAccessLogsPolicy"
+#   path        = "/"
+#   description = "Allows ALB to write access logs to S3 bucket"
+
+#   policy = jsonencode({
+#     "Version" = "2012-10-17",
+#     "Statement" = [
+#       {
+#         "Effect" = "Allow",
+#         "Action" = [
+#           "s3:ListAllMyBuckets"
+#         ],
+#         "Resource" = "*"
+#       },
+#       {
+#         "Effect" = "Allow",
+#         "Action" = [
+#           "s3:PutObject",
+#           "s3:PutObjectAcl"
+#         ],
+#         "Resource" = "${aws_s3_bucket.bucket_tf.arn}/*"
+#       }
+#     ]
+#   })
+# }
+
+# resource "aws_iam_policy" "alb_s3_policy" {
+#   name        = "policy"
+#   description = "My test policy"
+
+#   policy = <<EOT
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Action": [
+#         "s3:ListAllMyBuckets"
+#       ],
+#       "Effect": "Allow",
+#       "Resource": "*"
+#     },
+#     {
+#       "Action": [
+#         "s3:*"
+#       ],
+#       "Effect": "Allow",
+#       "Resource": "${aws_s3_bucket.bucket_tf.arn}"
+#     }
+#   ]
+
+# }
+# EOT
+# depends_on = [ aws_s3_bucket.bucket_tf ]
+# }
+
+# resource "aws_iam_role" "alb_role" {
+#   name = "alb-logs-role"
+#   assume_role_policy = jsonencode({
+#     Version = "2012-10-17",
+#     Statement = [
+#       {
+#         Effect = "Allow",
+#         Principal = {
+#           Service = "elasticloadbalancing.amazonaws.com"
+#         },
+#         Action = "sts:AssumeRole"
+#       }
+#     ]
+#   })
+# }
+
+
+# resource "aws_iam_role_policy_attachment" "alb_s3_policy_attachment" {
+#   role       = aws_iam_role.alb_role.name
+#   policy_arn = aws_iam_policy.alb_s3_policy.arn
+# }
+
+
+
+# resource "aws_s3_bucket_policy" "bucket_policy_tf" {
+#   bucket = aws_s3_bucket.bucket_tf.id
+
+#   policy = jsonencode({
+#     "Version": "2012-10-17",
+#     "Statement": [
+#       {
+#         "Effect": "Allow",
+#         "Principal": {
+#           "AWS": "${data.aws_elb_service_account.elb_acc.arn}"
+
+#         },
+#         "Action": [
+#           "s3:PutObject",
+#           "s3:ListAllMyBuckets",
+#           "s3:GetBucketAcl",
+#           "s3:*"
+#         ],
+#         "Resource": [
+#           "${aws_s3_bucket.bucket_tf.arn}",
+#           "${aws_s3_bucket.bucket_tf.arn}/my-job/AWSLogs/*"
+#           ]
+#       }
+#     ]
+#   })
+#   depends_on = [aws_s3_bucket.bucket_tf]
+# }
 
 
 resource "aws_lb_target_group_attachment" "tg_attach_pub_tf" {
@@ -345,6 +517,7 @@ resource "aws_lb_target_group_attachment" "tg_attach_pvt_tf" {
 }
 
 
+# Enable ALB Access Logging
 resource "aws_lb_listener" "lb_logs" {
   load_balancer_arn = aws_lb.load_tf.arn
   port              = 80
@@ -356,3 +529,199 @@ resource "aws_lb_listener" "lb_logs" {
   }
   depends_on = [aws_lb.load_tf, aws_lb_target_group.target_alb_tf, aws_lb_target_group_attachment.tg_attach_pvt_tf]
 }
+
+
+
+
+# resource "aws_lb_listener" "listener_tf" {
+#   default_action {
+#     type = "forward"
+#     target_group_arn = aws_lb_target_group.target_alb_tf.arn
+#   }
+#   load_balancer_arn = aws_lb.load_tf.arn
+#   port = 80
+#   protocol = "HTTP"
+#   depends_on = [ aws_lb.load_tf, aws_lb_target_group.target_alb_tf ]
+
+# }
+
+resource "aws_flow_log" "flow_log_tf" {
+  iam_role_arn    = aws_iam_role.role_tf.arn
+  log_destination = aws_cloudwatch_log_group.log_group_tf.arn
+  traffic_type    = "ALL"
+  vpc_id          = aws_vpc.vpc_tf.id
+  depends_on = [ aws_cloudwatch_log_group.log_group_tf, aws_iam_role.role_tf ]
+}
+
+resource "aws_cloudwatch_log_group" "log_group_tf" {
+  name = "log-tf"
+  depends_on = [ aws_lb_listener.lb_logs ]
+}
+
+data "aws_iam_policy_document" "assume_role" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["vpc-flow-logs.amazonaws.com"]
+    }
+
+    actions = ["sts:AssumeRole"]
+  }
+  depends_on = [ aws_lb_listener.lb_logs ]
+}
+
+resource "aws_iam_role" "role_tf" {
+  name               = "iam-role-tf"
+  assume_role_policy = data.aws_iam_policy_document.assume_role.json
+  depends_on = [ data.aws_iam_policy_document.assume_role ]
+}
+
+data "aws_iam_policy_document" "policy_doc_tf" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:DescribeLogGroups",
+      "logs:DescribeLogStreams",
+    ]
+
+    resources = ["*"]
+  }
+  depends_on = [ aws_lb_listener.lb_logs ]
+}
+
+resource "aws_iam_role_policy" "role_policy_tf" {
+  name   = "iam-role-policy-tf"
+  role   = aws_iam_role.role_tf.id
+  policy = data.aws_iam_policy_document.policy_doc_tf.json
+  depends_on = [ data.aws_iam_policy_document.policy_doc_tf, aws_iam_role.role_tf ]
+}
+
+
+resource "aws_cloudwatch_dashboard" "cloud_dashboard_tf" {
+  dashboard_name = "my-cloudwatch-dashboard"
+
+  dashboard_body = jsonencode({
+    widgets = [
+      {
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
+        height = 6
+
+        properties = {
+          metrics = [
+            [
+              "AWS/EC2",
+              "CPUUtilization",
+              "InstanceId",
+              "aws_instance.pub_inst_tf"
+            ],
+            [
+              "AWS/EC2",
+              "CPUUtilization",
+              "InstanceId",
+              "aws_instance.pvt_inst_tf"
+            ]
+          ]
+          period = 300
+          stat   = "Average"
+          region = "us-east-1"
+          title  = "EC2 Instance CPU"
+        }
+      },
+      {
+        type   = "text"
+        x      = 0
+        y      = 7
+        width  = 3
+        height = 3
+
+        properties = {
+          markdown = "Hello world"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_cloudwatch_metric_alarm" "foobar" {
+  alarm_name                = "terraform-test-foobar5"
+  comparison_operator       = "GreaterThanOrEqualToThreshold"
+  evaluation_periods        = 2
+  metric_name               = "CPUUtilization"
+  namespace                 = "AWS/EC2"
+  period                    = 120
+  statistic                 = "Average"
+  threshold                 = 80
+  alarm_description         = "This metric monitors ec2 cpu utilization"
+  insufficient_data_actions = []
+}
+
+
+resource "aws_launch_template" "pub_foobar" {
+  name_prefix   = "public"
+  image_id      = "ami-0a0e5d9c7acc336f1"
+  instance_type = "t2.micro"
+  placement {
+    availability_zone = "us-east-1a"
+    
+  }
+  network_interfaces {
+    subnet_id = aws_subnet.pub_sub_tf.id
+    associate_public_ip_address = true
+  }
+}
+
+resource "aws_launch_template" "pvt_foobar" {
+  name_prefix   = "private"
+  image_id      = "ami-0a0e5d9c7acc336f1"
+  instance_type = "t2.micro"
+  placement {
+    availability_zone = "us-east-1b"
+  }
+  network_interfaces {
+    subnet_id = aws_subnet.pvt_sub_tf.id
+    associate_public_ip_address = false
+  }
+}
+
+resource "aws_autoscaling_group" "pub_scale" {
+  availability_zones = ["us-east-1a"]
+  desired_capacity   = 1
+  max_size           = 1
+  min_size           = 1
+
+  launch_template {
+    id      = aws_launch_template.pub_foobar.id
+    version = "$Latest"
+  }
+  lifecycle {
+    create_before_destroy = false
+  }
+}
+
+resource "aws_autoscaling_group" "pvt_scale" {
+  availability_zones = ["us-east-1b"]
+  desired_capacity   = 1
+  max_size           = 1
+  min_size           = 1
+
+  launch_template {
+    id      = aws_launch_template.pvt_foobar.id
+    version = "$Latest"
+  }
+  lifecycle {
+    create_before_destroy = false
+  }
+}
+
+
+
+
