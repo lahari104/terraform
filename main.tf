@@ -78,17 +78,11 @@ resource "aws_route_table_association" "pvt_rt_assoc_tf" {
 
 
 resource "aws_eip" "nat_eip_tf" {
-  #   instance = aws_instance.pvt_inst_tf.id
   domain     = "vpc"
   depends_on = [aws_vpc.vpc_tf]
 
 }
 
-# resource "aws_eip_association" "pvt_eip_ass_tf" {
-#   instance_id   = aws_instance.pvt_inst_tf.id
-#   allocation_id = aws_eip.nat_eip_tf.id
-
-# }
 
 resource "aws_nat_gateway" "pvt_nat_tf" {
   allocation_id = aws_eip.nat_eip_tf.id
@@ -146,6 +140,52 @@ resource "aws_security_group" "security_tf" {
 }
 
 
+resource "aws_iam_role" "ec2_role" {
+  name = "ec2-cloudwatch-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+
+
+resource "aws_iam_role_policy" "cloudwatch_policy" {
+  name = "ec2-cloudwatch-policy"
+  role = aws_iam_role.ec2_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "cloudwatch:PutMetricData",
+          "logs:PutLogEvents",
+          "logs:CreateLogStream",
+          "logs:CreateLogGroup"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+
+resource "aws_iam_instance_profile" "ec2_instance_profile" {
+  name = "ec2-instance-profile"
+  role = aws_iam_role.ec2_role.name
+}
+
 
 
 resource "aws_instance" "pub_inst_tf" {
@@ -153,9 +193,10 @@ resource "aws_instance" "pub_inst_tf" {
   availability_zone           = "us-east-1a"
   instance_type               = "t2.micro"
   associate_public_ip_address = true
-  key_name                    = "Lahari"
+  key_name                    = "office-mac"
   security_groups             = [aws_security_group.security_tf.id]
   subnet_id                   = aws_subnet.pub_sub_tf.id
+  iam_instance_profile        = aws_iam_instance_profile.ec2_instance_profile.name
   tags = {
     "Name" = "Pub_Instance"
   }
@@ -168,9 +209,10 @@ resource "aws_instance" "pvt_inst_tf" {
   availability_zone           = "us-east-1b"
   instance_type               = "t2.micro"
   associate_public_ip_address = true
-  key_name                    = "Lahari"
+  key_name                    = "office-mac"
   security_groups             = [aws_security_group.security_tf.id]
   subnet_id                   = aws_subnet.pvt_sub_tf.id
+  iam_instance_profile        = aws_iam_instance_profile.ec2_instance_profile.name
   tags = {
     "Name" = "Pvt_Instance"
   }
@@ -257,9 +299,9 @@ data "aws_elb_service_account" "main" {
 }
 
 resource "aws_s3_bucket" "aws_bucket" {
-  bucket     = "access-logs-insignia"
+  bucket        = "access-logs-insignia"
   force_destroy = true
-  depends_on = [null_resource.pvt_tf]
+  depends_on    = [null_resource.pvt_tf]
 }
 
 
@@ -268,7 +310,7 @@ resource "aws_s3_bucket_ownership_controls" "s3_bucket_acl_ownership" {
   rule {
     object_ownership = "ObjectWriter"
   }
-  depends_on = [aws_s3_bucket.aws_bucket ]
+  depends_on = [aws_s3_bucket.aws_bucket]
 }
 
 resource "aws_s3_bucket_acl" "elb_logs_acl" {
@@ -328,178 +370,7 @@ resource "aws_lb" "load_tf" {
     "Name" = "tf-load-balancer"
   }
   depends_on = [aws_lb_target_group.target_alb_tf]
-
-
 }
-
-# resource "aws_s3_bucket" "s3_tf" {
-#   bucket = "bucket-load-balancer-logs"
-#   tags = {
-#     "Name" = "lb-logs"
-#   }
-#   depends_on = [ null_resource.pvt_tf ]
-# }
-
-
-# resource "aws_s3_bucket_policy" "alb_logs_policy" {
-#   bucket = aws_s3_bucket.s3_tf.id
-
-#   policy = jsonencode({
-#     "Version": "2012-10-17",
-#     "Statement": [
-#       {
-#         "Effect": "Allow",
-#         "Principal": {
-#           "Service": "logdelivery.elasticloadbalancing.amazonaws.com"
-#         },
-#         "Action": "s3:PutObject",
-#         "Resource": ""
-#       }
-#     ]
-#   })
-#   depends_on = [ aws_s3_bucket.s3_tf ]
-# }
-
-# Create S3 Bucket for ALB Logs
-# resource "aws_s3_bucket" "bucket_tf" {
-#   bucket = "bucket-load-balancer-logs"
-#   # aws_s3_bucket_acl    = "private"
-
-
-#   tags = {
-#     Name = "my-alb-logs-bucket"
-#   }
-#   depends_on = [ null_resource.pvt_tf ]
-# }
-
-# data "aws_elb_service_account" "elb_acc" {
-#   depends_on = [ aws_s3_bucket.bucket_tf ]
-  
-# }
-
-# resource "aws_iam_role" "alb_role" {
-#   name = "alb-logs-role"
-#   assume_role_policy = jsonencode({
-#     Version = "2012-10-17",
-#     Statement = [
-#       {
-#         Effect = "Allow",
-#         Principal = {
-#           Service = "ec2.amazonaws.com"
-#         },
-#         Action = "sts:AssumeRole"
-#       }
-#     ]
-#   })
-# }
-
-# resource "aws_iam_policy" "alb_s3_policy" {
-#   name        = "ALBAccessLogsPolicy"
-#   path        = "/"
-#   description = "Allows ALB to write access logs to S3 bucket"
-
-#   policy = jsonencode({
-#     "Version" = "2012-10-17",
-#     "Statement" = [
-#       {
-#         "Effect" = "Allow",
-#         "Action" = [
-#           "s3:ListAllMyBuckets"
-#         ],
-#         "Resource" = "*"
-#       },
-#       {
-#         "Effect" = "Allow",
-#         "Action" = [
-#           "s3:PutObject",
-#           "s3:PutObjectAcl"
-#         ],
-#         "Resource" = "${aws_s3_bucket.bucket_tf.arn}/*"
-#       }
-#     ]
-#   })
-# }
-
-# resource "aws_iam_policy" "alb_s3_policy" {
-#   name        = "policy"
-#   description = "My test policy"
-
-#   policy = <<EOT
-# {
-#   "Version": "2012-10-17",
-#   "Statement": [
-#     {
-#       "Action": [
-#         "s3:ListAllMyBuckets"
-#       ],
-#       "Effect": "Allow",
-#       "Resource": "*"
-#     },
-#     {
-#       "Action": [
-#         "s3:*"
-#       ],
-#       "Effect": "Allow",
-#       "Resource": "${aws_s3_bucket.bucket_tf.arn}"
-#     }
-#   ]
-
-# }
-# EOT
-# depends_on = [ aws_s3_bucket.bucket_tf ]
-# }
-
-# resource "aws_iam_role" "alb_role" {
-#   name = "alb-logs-role"
-#   assume_role_policy = jsonencode({
-#     Version = "2012-10-17",
-#     Statement = [
-#       {
-#         Effect = "Allow",
-#         Principal = {
-#           Service = "elasticloadbalancing.amazonaws.com"
-#         },
-#         Action = "sts:AssumeRole"
-#       }
-#     ]
-#   })
-# }
-
-
-# resource "aws_iam_role_policy_attachment" "alb_s3_policy_attachment" {
-#   role       = aws_iam_role.alb_role.name
-#   policy_arn = aws_iam_policy.alb_s3_policy.arn
-# }
-
-
-
-# resource "aws_s3_bucket_policy" "bucket_policy_tf" {
-#   bucket = aws_s3_bucket.bucket_tf.id
-
-#   policy = jsonencode({
-#     "Version": "2012-10-17",
-#     "Statement": [
-#       {
-#         "Effect": "Allow",
-#         "Principal": {
-#           "AWS": "${data.aws_elb_service_account.elb_acc.arn}"
-
-#         },
-#         "Action": [
-#           "s3:PutObject",
-#           "s3:ListAllMyBuckets",
-#           "s3:GetBucketAcl",
-#           "s3:*"
-#         ],
-#         "Resource": [
-#           "${aws_s3_bucket.bucket_tf.arn}",
-#           "${aws_s3_bucket.bucket_tf.arn}/my-job/AWSLogs/*"
-#           ]
-#       }
-#     ]
-#   })
-#   depends_on = [aws_s3_bucket.bucket_tf]
-# }
 
 
 resource "aws_lb_target_group_attachment" "tg_attach_pub_tf" {
@@ -531,31 +402,19 @@ resource "aws_lb_listener" "lb_logs" {
 }
 
 
-
-
-# resource "aws_lb_listener" "listener_tf" {
-#   default_action {
-#     type = "forward"
-#     target_group_arn = aws_lb_target_group.target_alb_tf.arn
-#   }
-#   load_balancer_arn = aws_lb.load_tf.arn
-#   port = 80
-#   protocol = "HTTP"
-#   depends_on = [ aws_lb.load_tf, aws_lb_target_group.target_alb_tf ]
-
-# }
-
 resource "aws_flow_log" "flow_log_tf" {
   iam_role_arn    = aws_iam_role.role_tf.arn
   log_destination = aws_cloudwatch_log_group.log_group_tf.arn
   traffic_type    = "ALL"
   vpc_id          = aws_vpc.vpc_tf.id
-  depends_on = [ aws_cloudwatch_log_group.log_group_tf, aws_iam_role.role_tf ]
+  depends_on      = [aws_cloudwatch_log_group.log_group_tf, aws_iam_role.role_tf]
 }
 
 resource "aws_cloudwatch_log_group" "log_group_tf" {
-  name = "log-tf"
-  depends_on = [ aws_lb_listener.lb_logs ]
+  name         = "log-tf"
+  skip_destroy = false
+  depends_on   = [aws_lb_listener.lb_logs]
+
 }
 
 data "aws_iam_policy_document" "assume_role" {
@@ -569,13 +428,13 @@ data "aws_iam_policy_document" "assume_role" {
 
     actions = ["sts:AssumeRole"]
   }
-  depends_on = [ aws_lb_listener.lb_logs ]
+  depends_on = [aws_lb_listener.lb_logs]
 }
 
 resource "aws_iam_role" "role_tf" {
   name               = "iam-role-tf"
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
-  depends_on = [ data.aws_iam_policy_document.assume_role ]
+  depends_on         = [data.aws_iam_policy_document.assume_role]
 }
 
 data "aws_iam_policy_document" "policy_doc_tf" {
@@ -592,19 +451,19 @@ data "aws_iam_policy_document" "policy_doc_tf" {
 
     resources = ["*"]
   }
-  depends_on = [ aws_lb_listener.lb_logs ]
+  depends_on = [aws_lb_listener.lb_logs]
 }
 
 resource "aws_iam_role_policy" "role_policy_tf" {
-  name   = "iam-role-policy-tf"
-  role   = aws_iam_role.role_tf.id
-  policy = data.aws_iam_policy_document.policy_doc_tf.json
-  depends_on = [ data.aws_iam_policy_document.policy_doc_tf, aws_iam_role.role_tf ]
+  name       = "iam-role-policy-tf"
+  role       = aws_iam_role.role_tf.id
+  policy     = data.aws_iam_policy_document.policy_doc_tf.json
+  depends_on = [data.aws_iam_policy_document.policy_doc_tf, aws_iam_role.role_tf]
 }
 
 
-resource "aws_cloudwatch_dashboard" "cloud_dashboard_tf" {
-  dashboard_name = "my-cloudwatch-dashboard"
+resource "aws_cloudwatch_dashboard" "cloudwatch_dashboard_cpu" {
+  dashboard_name = "cpu-monitoring-cloudwatch-dashboard"
 
   dashboard_body = jsonencode({
     widgets = [
@@ -649,79 +508,307 @@ resource "aws_cloudwatch_dashboard" "cloud_dashboard_tf" {
       }
     ]
   })
-}
-
-resource "aws_cloudwatch_metric_alarm" "foobar" {
-  alarm_name                = "terraform-test-foobar5"
-  comparison_operator       = "GreaterThanOrEqualToThreshold"
-  evaluation_periods        = 2
-  metric_name               = "CPUUtilization"
-  namespace                 = "AWS/EC2"
-  period                    = 120
-  statistic                 = "Average"
-  threshold                 = 80
-  alarm_description         = "This metric monitors ec2 cpu utilization"
-  insufficient_data_actions = []
+  depends_on = [aws_iam_role_policy.role_policy_tf]
 }
 
 
-resource "aws_launch_template" "pub_foobar" {
-  name_prefix   = "public"
-  image_id      = "ami-0a0e5d9c7acc336f1"
+resource "aws_cloudwatch_dashboard" "cloudwatch_dashboard_apache" {
+  dashboard_name = "apache-monitoring-cloudwatch-dashboard"
+
+  dashboard_body = jsonencode({
+    widgets = [
+      {
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
+        height = 6
+
+        properties = {
+          metrics = [
+            [
+              "AWS/EC2",
+              "ApacheStatus",
+              "InstanceId",
+              "aws_instance.pub_inst_tf"
+            ],
+            [
+              "AWS/EC2",
+              "ApacheStatus",
+              "InstanceId",
+              "aws_instance.pvt_inst_tf"
+            ]
+          ]
+          period = 300
+          stat   = "Average"
+          region = "us-east-1"
+          title  = "Apache Status"
+        }
+      },
+      {
+        type   = "text"
+        x      = 0
+        y      = 7
+        width  = 3
+        height = 3
+
+        properties = {
+          markdown = "Hello world"
+        }
+      }
+    ]
+  })
+  depends_on = [aws_cloudwatch_dashboard.cloudwatch_dashboard_cpu]
+}
+
+
+resource "aws_cloudwatch_metric_alarm" "high_cpu_pub" {
+  alarm_name          = "high_cpu"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "120"
+  statistic           = "Average"
+  threshold           = "70"
+  alarm_description   = "This metric monitors EC2 CPU utilization"
+  dimensions = {
+    InstanceId = aws_instance.pub_inst_tf.id
+  }
+  alarm_actions = []
+  depends_on = [aws_cloudwatch_dashboard.cloudwatch_dashboard_apache]
+}
+
+
+resource "aws_cloudwatch_metric_alarm" "high_cpu_pvt" {
+  alarm_name          = "high_cpu"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "120"
+  statistic           = "Average"
+  threshold           = "70"
+  alarm_description   = "This metric monitors EC2 CPU utilization"
+  dimensions = {
+    InstanceId = aws_instance.pvt_inst_tf.id
+  }
+  alarm_actions = []
+  depends_on = [aws_iam_role_policy.cloudwatch_policy]
+}
+
+
+resource "aws_ami_from_instance" "pub_ami" {
+  name               = "public-instance-ami"
+  source_instance_id = aws_instance.pub_inst_tf.id
+  depends_on         = [aws_cloudwatch_metric_alarm.high_cpu_pub]
+}
+
+
+resource "aws_ami_from_instance" "pvt_ami" {
+  name               = "pvt-instance-ami"
+  source_instance_id = aws_instance.pvt_inst_tf.id
+  depends_on         = [aws_ami_from_instance.pub_ami]
+}
+
+resource "aws_launch_template" "pub_ins_lt" {
+  image_id      = aws_ami_from_instance.pub_ami.id
   instance_type = "t2.micro"
+  key_name      = "office-mac"
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups             = [aws_security_group.security_tf.id]
+  }
   placement {
     availability_zone = "us-east-1a"
-    
   }
-  network_interfaces {
-    subnet_id = aws_subnet.pub_sub_tf.id
-    associate_public_ip_address = true
-  }
+  depends_on = [aws_ami_from_instance.pub_ami]
 }
 
-resource "aws_launch_template" "pvt_foobar" {
-  name_prefix   = "private"
-  image_id      = "ami-0a0e5d9c7acc336f1"
+
+resource "aws_launch_template" "pvt_ins_lt" {
+  image_id      = aws_ami_from_instance.pvt_ami.id
   instance_type = "t2.micro"
+  key_name      = "office-mac"
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups             = [aws_security_group.security_tf.id]
+  }
   placement {
     availability_zone = "us-east-1b"
   }
-  network_interfaces {
-    subnet_id = aws_subnet.pvt_sub_tf.id
-    associate_public_ip_address = false
-  }
+  depends_on = [aws_ami_from_instance.pvt_ami]
 }
 
-resource "aws_autoscaling_group" "pub_scale" {
-  availability_zones = ["us-east-1a"]
-  desired_capacity   = 1
-  max_size           = 1
-  min_size           = 1
 
+resource "aws_autoscaling_group" "public_asg" {
   launch_template {
-    id      = aws_launch_template.pub_foobar.id
+    id      = aws_launch_template.pub_ins_lt.id
     version = "$Latest"
   }
-  lifecycle {
-    create_before_destroy = false
+  name                = "public-asg"
+  force_delete        = true
+  min_size            = 1
+  max_size            = 3
+  desired_capacity    = 1
+  vpc_zone_identifier = [aws_subnet.pub_sub_tf.id]
+
+  tag {
+    key                 = "Name"
+    value               = "PublicApacheServer"
+    propagate_at_launch = true
   }
+  depends_on = [aws_launch_template.pub_ins_lt]
 }
 
-resource "aws_autoscaling_group" "pvt_scale" {
-  availability_zones = ["us-east-1b"]
-  desired_capacity   = 1
-  max_size           = 1
-  min_size           = 1
 
+resource "aws_autoscaling_policy" "public_asg_policy" {
+  name                   = "public_asg_policy"
+  scaling_adjustment     = 1
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 300
+  autoscaling_group_name = aws_autoscaling_group.public_asg.name
+  depends_on             = [aws_autoscaling_group.public_asg]
+}
+
+
+resource "aws_cloudwatch_metric_alarm" "high_cpu_pub_asg" {
+  alarm_name          = "high_cpu"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "120"
+  statistic           = "Average"
+  threshold           = "70"
+  alarm_description   = "This metric monitors EC2 CPU utilization"
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.public_asg.name
+  }
+  alarm_actions = [aws_autoscaling_policy.public_asg_policy.arn]
+  depends_on    = [aws_autoscaling_policy.public_asg_policy]
+}
+
+
+
+resource "aws_autoscaling_group" "private_asg" {
   launch_template {
-    id      = aws_launch_template.pvt_foobar.id
+    id      = aws_launch_template.pvt_ins_lt.id
     version = "$Latest"
   }
-  lifecycle {
-    create_before_destroy = false
+  name                = "private-asg"
+  force_delete        = true
+  min_size            = 1
+  max_size            = 3
+  desired_capacity    = 1
+  vpc_zone_identifier = [aws_subnet.pvt_sub_tf.id]
+
+  tag {
+    key                 = "Name"
+    value               = "PrivateApacheServer"
+    propagate_at_launch = true
   }
+  depends_on = [aws_launch_template.pvt_ins_lt]
+}
+
+
+resource "aws_autoscaling_policy" "private_asg_policy" {
+  name                   = "private_asg_policy"
+  scaling_adjustment     = 1
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 300
+  autoscaling_group_name = aws_autoscaling_group.private_asg.name
+  depends_on             = [aws_autoscaling_group.private_asg]
+}
+
+
+resource "aws_cloudwatch_metric_alarm" "high_cpu_pvt_asg" {
+  alarm_name          = "high_cpu"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "120"
+  statistic           = "Average"
+  threshold           = "70"
+  alarm_description   = "This metric monitors EC2 CPU utilization"
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.private_asg.name
+  }
+  alarm_actions = [aws_autoscaling_policy.private_asg_policy.arn]
+  depends_on    = [aws_autoscaling_policy.private_asg_policy]
 }
 
 
 
+### (or)
 
+
+# resource "aws_ami_from_instance" "ami" {
+#   name               = "instance-ami"
+#   source_instance_id = aws_instance.pub_inst_tf.id
+#   depends_on         = [aws_cloudwatch_metric_alarm.high_cpu_pub]
+# }
+
+# resource "aws_launch_template" "ins_lt" {
+#   image_id      = aws_ami_from_instance.ami.id
+#   instance_type = "t2.micro"
+#   key_name      = "office-mac"
+#   network_interfaces {
+#     associate_public_ip_address = true
+#     security_groups             = [aws_security_group.security_tf.id]
+#   }
+#   placement {
+#     availability_zone = "us-east-1a"
+#   }
+#   depends_on = [aws_ami_from_instance.ami]
+# }
+
+
+# resource "aws_autoscaling_group" "asg" {
+#   launch_template {
+#     id      = aws_launch_template.ins_lt.id
+#     version = "$Latest"
+#   }
+#   name                = "ASG"
+#   force_delete        = true
+#   min_size            = 1
+#   max_size            = 3
+#   desired_capacity    = 1
+#   vpc_zone_identifier = [aws_subnet.pub_sub_tf.id, aws_subnet.pvt_sub_tf.id]
+
+#   tag {
+#     key                 = "Name"
+#     value               = "ApacheServer"
+#     propagate_at_launch = true
+#   }
+#   depends_on = [aws_launch_template.ins_lt]
+# }
+
+
+# resource "aws_autoscaling_policy" "public_asg_policy" {
+#   name                   = "asg_policy"
+#   scaling_adjustment     = 1
+#   adjustment_type        = "ChangeInCapacity"
+#   cooldown               = 300
+#   autoscaling_group_name = aws_autoscaling_group.asg.name
+#   depends_on             = [aws_autoscaling_group.asg]
+# }
+
+
+# resource "aws_cloudwatch_metric_alarm" "high_cpu_asg" {
+#   alarm_name          = "high_cpu"
+#   comparison_operator = "GreaterThanThreshold"
+#   evaluation_periods  = "2"
+#   metric_name         = "CPUUtilization"
+#   namespace           = "AWS/EC2"
+#   period              = "120"
+#   statistic           = "Average"
+#   threshold           = "70"
+#   alarm_description   = "This metric monitors EC2 CPU utilization"
+#   dimensions = {
+#     AutoScalingGroupName = aws_autoscaling_group.public_asg.name
+#   }
+#   alarm_actions = [aws_autoscaling_policy.asg_policy.arn]
+#   depends_on    = [aws_autoscaling_policy.asg_policy]
+# }
