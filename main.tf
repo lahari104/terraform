@@ -193,7 +193,7 @@ resource "aws_instance" "pub_inst_tf" {
   availability_zone           = "us-east-1a"
   instance_type               = "t2.micro"
   associate_public_ip_address = true
-  key_name                    = "office-mac"
+  key_name                    = "Lahari"
   security_groups             = [aws_security_group.security_tf.id]
   subnet_id                   = aws_subnet.pub_sub_tf.id
   iam_instance_profile        = aws_iam_instance_profile.ec2_instance_profile.name
@@ -209,7 +209,7 @@ resource "aws_instance" "pvt_inst_tf" {
   availability_zone           = "us-east-1b"
   instance_type               = "t2.micro"
   associate_public_ip_address = true
-  key_name                    = "office-mac"
+  key_name                    = "Lahari"
   security_groups             = [aws_security_group.security_tf.id]
   subnet_id                   = aws_subnet.pvt_sub_tf.id
   iam_instance_profile        = aws_iam_instance_profile.ec2_instance_profile.name
@@ -614,7 +614,7 @@ resource "aws_ami_from_instance" "pvt_ami" {
 resource "aws_launch_template" "pub_ins_lt" {
   image_id      = aws_ami_from_instance.pub_ami.id
   instance_type = "t2.micro"
-  key_name      = "office-mac"
+  key_name      = "Lahari"
   network_interfaces {
     associate_public_ip_address = true
     security_groups             = [aws_security_group.security_tf.id]
@@ -629,7 +629,7 @@ resource "aws_launch_template" "pub_ins_lt" {
 resource "aws_launch_template" "pvt_ins_lt" {
   image_id      = aws_ami_from_instance.pvt_ami.id
   instance_type = "t2.micro"
-  key_name      = "office-mac"
+  key_name      = "Lahari"
   network_interfaces {
     associate_public_ip_address = true
     security_groups             = [aws_security_group.security_tf.id]
@@ -753,7 +753,7 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu_pvt_asg" {
 # resource "aws_launch_template" "ins_lt" {
 #   image_id      = aws_ami_from_instance.ami.id
 #   instance_type = "t2.micro"
-#   key_name      = "office-mac"
+#   key_name      = "Lahari"
 #   network_interfaces {
 #     associate_public_ip_address = true
 #     security_groups             = [aws_security_group.security_tf.id]
